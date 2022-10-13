@@ -23,53 +23,7 @@
 #
 # Script Author: Ben Snow, adapted by Jessica Nephin
 # Script Date: Aug 27, 2019, adapted in Jan 2022
-# R Version: 3.5.1, version 4.0.2
-
-
-################################################################################
-#                                           CHANGE LOG
-################################################################################
-#
-# May 12, 2020: Padded transect start and end times by 5 minutes on either side, 
-#               as per request from J.Nephin and S. Jeffery
-# May 24, 2020: Changed out of range values for Tritech PA500 altimeter 
-#               (MiniZeus Slant Range) and ROWETech DVL (Altitude) to -9999, 
-#               instead of N/A. Note that Phantom ROV speed (from the DVL) be 
-#               default reads -9999 when out of range.
-# June 2, 2020: Both Phantom heading and ship heading are now exported by this 
-#               script; previously it was only the phantom's heading. Also, 
-#               changed out-of range data values for speed from -99.9999 to 
-#               -9999, to maintain consistency with Altitude and Slant Range 
-#               Calculations.
-# Apr 21, 2021: Updated device read in values, Cyclops HPR records removed, 
-#               switched to RogueCam. Updated the initial read in loop to read 
-#               an extra column now reads up to column X6 (previously was only 
-#               to X5). This allows for appropriate parsing of the HPR devices, 
-#               which includes data up to column X6.
-# Apr 27, 2021: Added new section to create non-clipped data records, this is to 
-#               allow plotting of certain variables during the descent/ascent 
-#               phase of each dive.
-# Nov 18, 2021: Tested GitHub functionality with RStudio
-# Jan 2022: Started develop branch, made a number of changes:
-#          - raw files read once with readLines then parsed
-#          - uses function for reading raw files (faster than loop)
-#          - processes sensor data prior to expanding to a 1Hz freq dataset
-#          - added feet to meters conversion of secondary depth source
-#          - fills in rov position gaps with ship gps, added source field 
-#          - negative no data values classed as NA instead of -999
-#          - gives option for transect padding, default to 2 min
-#          - removes any time overlap between transects caused by padding
-#          - merges padded start/end times with processed sensor data
-#          - option to save off transect data too
-#          - attempted to make code more explicit, removed use of column order
-#          - also removed all get() functions
-#          - exports all data together instead of by transect
-#          - Saves data processing log with warnings, errors and data summaries
-#          - Using terra instead of rgdal, accepts NA values
-#          - Added before or after dive phase field, used before and after 
-#            of descent or ascent in case there are multiple transects in a dive
-#          - Removed filling beacon position gaps with ship position
-################################################################################
+# R version 4.2.1
 
 
 #===============================================================================

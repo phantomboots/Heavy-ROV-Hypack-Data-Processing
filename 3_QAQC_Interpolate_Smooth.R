@@ -15,7 +15,7 @@
 #
 # Script Author: Ben Snow, adapted by Jessica Nephin
 # Script Date: Sep 9, 2019 adapted in Feb 2022
-# R Version: 3.5.1, version 4.0.2
+# R version 4.2.1
 
 
 ################################################################################
@@ -75,6 +75,8 @@
 ################################################################################
 
 
+# Notes 
+# need to add telemetry data
 
 #===============================================================================
 # Packages and session options
@@ -101,34 +103,31 @@ options(digits = 12)
 wdir <- getwd() 
 
 # Project folder
-project_folder <- "Feb2022_ROV_Sponge_Coral_MPA"
+project_folder <- "Anchorages_2022"
 
 # Directory where Hypack processed data are stored
-hypack_path <- file.path(wdir, project_folder, "Data/1.Hypack_Processed_Data")
-
-# Directory where RBR CTD excel files are stored
-RBR_path <- file.path(wdir, project_folder, "Data/RBR_CTD_Data")
+hypack_path <- file.path(wdir, project_folder, "1.Hypack_Processed_Data")
 
 # Directory with ASDL master files
-ASDL_path <- file.path(wdir, project_folder, "Data/2.ASDL_Processed_Data")
+ASDL_path <- file.path(wdir, project_folder, "2.ASDL_Processed_Data")
 
 # Export directories 
-final_dir <- file.path(wdir, project_folder, "Data/3.Final_Processed_Data")
+final_dir <- file.path(wdir, project_folder, "3.Final_Processed_Data")
 dir.create(final_dir, recursive = TRUE) # Will warn if already exists
-fig_dir <- file.path(wdir, project_folder, "Data/3.Figures")
+fig_dir <- file.path(wdir, project_folder, "3.Figures")
 dir.create(fig_dir, recursive = TRUE) # Will warn if already exists
 
-# # Specify offsets for ship GPS source. If more than one GPS is used, specify 
-# # both sources independently. Offset to the port side are positive values for 
-# # 'GPS_abeam' and offset towards the bow are positive for 'GPS_along'.
-# # Question: are these the distances from the center of the ship, or from the 
-# # ROV transponder? 
-# GPS_abeam <- -4.1
-# GPS_along <- -12.57
+
+# Specify offsets for ship GPS source if the offsets were not set in hypack.
+# Offset to the port side are positive values for 'GPS_abeam' and offset towards 
+# the bow are positive for 'GPS_along'.
+offsets <- TRUE # FALSE is no offsets need to be applied, default
+GPS_abeam <- 0
+GPS_along <- -5.79 # to correct for offset position error in anchorages 2022
 
 # Do you want to use manual trackman ROV position as a backup ROV position?
 # TRUE for yes, FALSE for no
-trackman <- FALSE
+trackman <- TRUE
 
 # Set the value to use for the 'window' size (in seconds) of the running median 
 # smoothing of the beacon position. Must be odd number!
@@ -187,8 +186,6 @@ message( "Maximum allowable distance between ship and ROV = ", max_dist, "\n\n")
 # STEP 3 - READ IN THE HYPACK AND ASDL PROCESSED DATA, AND RBR EXCEL FILES
 
 # Read all Master Log files
-Slant_Range_Master <- read.csv(file.path(ASDL_path,"Tritech_SlantRange_MasterLog.csv"))
-Slant_Range_Master$Datetime <- ymd_hms(Slant_Range_Master$Datetime)
 Manual_Track_Master <- read.csv(file.path(ASDL_path,"Manual_Beacon_Tracking_MasterLog.csv"))
 Manual_Track_Master$Datetime <- ymd_hms(Manual_Track_Master$Datetime)
 Manual_Track_Master$ID <- "Manual tracking backup"
@@ -197,43 +194,37 @@ Hemisphere_Master$Datetime <- ymd_hms(Hemisphere_Master$Datetime)
 Hemisphere_Master$ID <- "Ship GPS backup"
 Ship_Heading_Master <- read.csv(file.path(ASDL_path,"Hemisphere_Heading_MasterLog.csv"))
 Ship_Heading_Master$Datetime <- ymd_hms(Ship_Heading_Master$Datetime)
-DVL_Master <- read.csv(file.path(ASDL_path,"ROWETECH_DVL_MasterLog.csv"))
+DVL_Master <- read.csv(file.path(ASDL_path,"DVL_MasterLog.csv"))
 DVL_Master$Datetime <- ymd_hms(DVL_Master$Datetime)
-ROV_Heading_Depth_Master <- read.csv(file.path(ASDL_path,"ROV_Heading_Depth_MasterLog.csv"))
-ROV_Heading_Depth_Master$Datetime <- ymd_hms(ROV_Heading_Depth_Master$Datetime)
-ROV_Heading_Depth_Master$ID <- "ROV Heading Depth ASDL"
-RBR_Master <- read.csv(file.path(ASDL_path,"RBR_CTD_MasterLog.csv"))
-RBR_Master$Datetime <- ymd_hms(RBR_Master$Datetime)
-RBR_Master$ID <- "RBR CTD ASDL"
-MiniZeus_ZFA_Master <- read.csv(file.path(ASDL_path,"MiniZeus_ZFA_MasterLog.csv"))
-MiniZeus_ZFA_Master$Datetime <- ymd_hms(MiniZeus_ZFA_Master$Datetime)
-ROV_MiniZeus_IMUS_Master <- read.csv(file.path(ASDL_path,"Zeus_ROV_IMU_MasterLog.csv"))
-ROV_MiniZeus_IMUS_Master$Datetime <- ymd_hms(ROV_MiniZeus_IMUS_Master$Datetime)
 
-# Read in RBR data from .xlsx files
+# Read in telemetry data
 # Create blank data frame to fill in the loop below.
-RBR_Data <- data.frame()
+T_Data <- data.frame()
 # Read in all RBR .xlsx files in the directory, merge into one larger dataframe
-RBR_files <- list.files(path=RBR_path, pattern = ".xlsx", full.names = T)
-for(i in RBR_files){
+T_files <- list.files(path=file.path(wdir, project_folder,'Telemetry'), 
+                        pattern = ".csv", full.names = T)
+for(i in T_files){
   # High max guess range, sometimes there are many rows missing at beginning
-  tmp <- read_xlsx(i, sheet = "Data", skip = 1, guess_max = 10000)
-  RBR_Data <- bind_rows(RBR_Data, tmp)
+  tmp <- read.csv(i, header=T)
+  T_Data <- bind_rows(T_Data, tmp)
 }
+# Assign datetime field
+T_Data$Datetime <- ymd_hms(T_Data$Timestamp)
+# Select fields
+T_Data <- T_Data[c("Datetime", "roll", "pitch", "heading", "altitudeRelative", 
+                   "apmSubInfo.cameraTilt", "apmSubInfo.lights2", 
+                   "apmSubInfo.pilotGain")]
 # Rename
-names(RBR_Data) <- c("Datetime", "Conductivity_mS_cm", "Temperature_C",
-                     "Pressure_dbar", "DO_Sat_percent", "Sea_Pressure_dbar",
-                     "Depth_m", "Salinity_PSU", "Sound_Speed_m_s",
-                     "Specific_Cond_uS_cm", "Density_kg_m3", "DO_conc_mgL")
+names(T_Data) <- c("Datetime", "ROV_roll", "ROV_pitch", "ROV_heading", "Depth_m",
+                   "CameraTilt", "Lights", "PilotGain")
+# Convert depth to positive, elevation negative
+T_Data$Depth_m <- -1 * T_Data$Depth_m 
 # Add source ID
-RBR_Data$ID <- "RBR CTD XLS"
+T_Data$ID <- "Telemetry"
 # Summary 
-message("RBR data summary from merged excel files:")
-print(summary(RBR_Data))
-# Check to see if the RBR data is from year 2000 (default in system)
-if ( any(year(RBR_Data$Datetime) == 2000) ){
-  warning("RBR year is incorrect!! No RBR CTD data with match up.")
-}
+message("Telemetry data summary:")
+print(summary(T_Data))
+
 
 # Read in transect data processed at a 1Hz from Hypack (named: dat)
 load(file=file.path(hypack_path, "HypackData_bySecond.RData"))
@@ -246,8 +237,98 @@ if( any(dat$Dive_Phase == 'Off_transect') ) {
   grp <- "Transect_Name"
 }
 
+
+# # test effect of 18 deg variation error
+# # trackman heading source
+# Track_Heading <- read.csv(file.path(ASDL_path,"TrackMan_Beacons_MasterLog.csv"))
+# Track_Heading$Datetime <- ymd_hms(Track_Heading$Datetime)
+# # Compare hypack and manual tracking backup beacon positions by dive
+# tmp <- merge(dat, Track_Heading, by="Datetime")
+# 
+# plot(tmp$Ship_heading, tmp$Ship_Heading)
+# abline(a=0,b=1, col="red")
+# 
+# tmp$new_heading <- tmp$Ship_Heading - 18
+# tmp$new_heading[tmp$new_heading < 0] <- tmp$new_heading[tmp$new_heading < 0] + 360
+# 
+# plot(tmp$Ship_heading, tmp$new_heading)
+# abline(a=0,b=1, col="red")
+
+
+
 #===============================================================================
-# STEP 4 - USE ASDL AND RBR TO FILL IN HYPACK DATA GAPS 
+# STEP 4 - APPLY OFFSETS TO HYPACK BEACON POSITION DATA
+
+# Calculate the bearing and distance for offset calculations using GPS_abeam and
+# GPS_along offsets. Offset for the antenna to the port side are (+) for 
+# 'GPS_abeam' and offsets towards the bow are (+) for 'GPS_along'. 
+# For trig purposes, abeam = opposite and along = adjacent.
+
+if (offsets){
+  # Compute length of hypotenuse to determine offset distance, in meters.
+  # Offset dist will be 0 if GPS_abeam and GPS_along are 0
+  offset_dist <- sqrt((GPS_abeam^2) + (GPS_along^2))
+  
+  # Calculate the angle from the center of the ship to the antenna location
+  # Absolute value
+  offset_angle <- atan(GPS_abeam/GPS_along)
+  offset_angle <- abs(offset_angle * (180/pi)) #Convert to degrees.
+  
+  # Set bearing when the GPS either along=0 or abeam == 0 or both
+  # GPS antenna dead center on the ship
+  if(GPS_abeam == 0 & GPS_along == 0) {
+    bearing <- 0
+    # GPS antenna along keel line, forward of the center of ship
+  } else if (GPS_abeam == 0 & GPS_along > 0) {
+    bearing <- dat$Ship_heading
+    # GPS antenna along keel line, aft of the center of ship
+  } else if (GPS_abeam == 0 & GPS_along < 0) {
+    bearing <- dat$Ship_heading - 180
+    # GPS antenna centered fore/aft, but port of the keel line
+  } else if (GPS_abeam > 0 & GPS_along == 0) {
+    bearing <- dat$Ship_heading - 90
+    # GPS antenna centered fore/aft, but starboard of the keel line
+  } else if (GPS_abeam < 0 & GPS_along == 0) {
+    bearing <- dat$Ship_heading + 90
+  }
+  
+  # Calculate bearing with offset angle when along and abeam are not == 0
+  # When GPS is starboard and aft, abeam (-) and along (-)
+  if (GPS_abeam < 0 & GPS_along < 0){
+    # Subtract offset angle
+    bearing <- dat$Ship_heading - offset_angle - 180
+    # When GPS is port and aft, abeam (+) and along (-)
+  } else if (GPS_abeam > 0 & GPS_along < 0){
+    # Add offset angle
+    bearing <- dat$Ship_heading + offset_angle + 180
+    # When GPS is starboard and forward, abeam (-) and along (+)
+  } else if (GPS_abeam < 0 & GPS_along > 0){
+    # Add offset angle
+    bearing <- dat$Ship_heading + offset_angle
+    # When GPS is port and forward, abeam (+) and along (+)
+  } else if (GPS_abeam > 0 & GPS_along > 0){
+    # Subtract offset angle
+    bearing <- dat$Ship_heading - offset_angle
+  }
+  
+  # If bearing is negative, add to 360
+  bearing[bearing < 0 & !is.na(bearing)] <- bearing[bearing < 0 & !is.na(bearing)] + 360
+  # If bearing is greater than 360, subtract 360 from bearing
+  bearing[bearing > 360 & !is.na(bearing)] <- bearing[bearing > 360 & !is.na(bearing)] - 360
+  
+  # Calculate new lat/lon using bearing direction and offset distance
+  offset_calc <- destPoint(p=dat[c("Beacon_Longitude",
+                                   "Beacon_Latitude")],
+                           b=bearing,
+                           d=offset_dist)
+  # Add new offset long/lat to dat
+  dat$Beacon_Longitude <- offset_calc[,1]
+  dat$Beacon_Latitude <- offset_calc[,2]
+} 
+
+
+#===============================================================================
+# STEP 5 - USE ASDL AND RBR TO FILL IN HYPACK DATA GAPS 
 
 # Function to fill gaps
 # Arguments:
@@ -426,7 +507,7 @@ dat <- fillgaps(tofill=dat,
 
 
 #===============================================================================
-# STEP 5 - ADD ASDL and RBR CTD DATA NOT IN HYPACK DATA 
+# STEP 6 - ADD ASDL and RBR CTD DATA NOT IN HYPACK DATA 
 
 # Merge MiniZeus fields
 dat <- left_join(dat, MiniZeus_ZFA_Master, by = "Datetime")
@@ -452,7 +533,7 @@ summary(dat)
 
 
 #===============================================================================
-# STEP 6 - INTERPOLATE TO FILL GAPS
+# STEP 7 - INTERPOLATE TO FILL GAPS
 
 # Interpolate function
 # Only interpolates if there are more than 2 non-NA values
@@ -505,80 +586,6 @@ message("\nBeacon position sources:")
 print(table(dat$Beacon_Source))
 
 
-
-#===============================================================================
-# STEP 7 - APPLY OFFSETS TO POSITIONS DATA
-
-# Calculate the bearing and distance from the center of the ship to the GPS 
-# antenna. The bearing and distance are used to calculate new lat and long
-# coordinates at the GPS antenna location (offset from the center of the ship).
-# Offset for the antenna to the port side are (+) for 'GPS_abeam' and offsets 
-# towards the bow are (+) for 'GPS_along'. For trig purposes, abeam = opposite 
-# and along = adjacent.
-
-# # Compute length of hypotenuse to determine offset distance, in meters.
-# # Offset dist will be 0 if GPS_abeam and GPS_along are 0
-# offset_dist <- sqrt((GPS_abeam^2) + (GPS_along^2))
-# 
-# # Calculate the angle from the center of the ship to the antenna location
-# # Absolute value
-# offset_angle <- atan(GPS_abeam/GPS_along)
-# offset_angle <- abs(offset_angle * (180/pi)) #Convert to degrees.
-# 
-# # Set bearing when the GPS either along=0 or abeam == 0 or both
-# # GPS antenna dead center on the ship
-# if(GPS_abeam == 0 & GPS_along == 0) {
-#   bearing <- 0
-# # GPS antenna along keel line, forward of the center of ship
-# } else if (GPS_abeam == 0 & GPS_along > 0) {
-#   bearing <- dat$Ship_heading
-#   # GPS antenna along keel line, aft of the center of ship
-# } else if (GPS_abeam == 0 & GPS_along < 0) {
-#   bearing <- dat$Ship_heading - 180
-#   # GPS antenna centered fore/aft, but port of the keel line
-# } else if (GPS_abeam > 0 & GPS_along == 0) {
-#   bearing <- dat$Ship_heading - 90
-#   # GPS antenna centered fore/aft, but starboard of the keel line
-# } else if (GPS_abeam < 0 & GPS_along == 0) {
-#   bearing <- dat$Ship_heading + 90
-# }
-# 
-# # Calculate bearing with offset angle when along and abeam are not == 0
-# # When GPS is starboard and aft, abeam (-) and along (-)
-# if (GPS_abeam < 0 & GPS_along < 0){
-#   # Subtract offset angle
-#   bearing <- dat$Ship_heading - offset_angle - 180
-# # When GPS is port and aft, abeam (+) and along (-)
-# } else if (GPS_abeam > 0 & GPS_along < 0){
-#   # Add offset angle
-#   bearing <- dat$Ship_heading + offset_angle + 180
-# # When GPS is starboard and forward, abeam (-) and along (+)
-# } else if (GPS_abeam < 0 & GPS_along > 0){
-#   # Add offset angle
-#   bearing <- dat$Ship_heading + offset_angle
-# # When GPS is port and forward, abeam (+) and along (+)
-# } else if (GPS_abeam > 0 & GPS_along > 0){
-#   # Subtract offset angle
-#   bearing <- dat$Ship_heading - offset_angle
-# }
-# 
-# # If bearing is negative, add to 360
-# bearing[bearing < 0] <- bearing[bearing < 0] + 360
-# # If bearing is greater than 360, subtract 360 from bearing
-# bearing[bearing > 360] <- bearing[bearing > 360] - 360
-# 
-# # Apply offsets from GPS to center of ship using bearing and offset_dist
-# # Question: should this offset only be applied to specific beacon sources?
-# # e.g. primary but not ship?
-# offsets <- destPoint(p=dat[c("Beacon_Longitude",
-#                                "Beacon_Latitude")],
-#                      b=bearing,
-#                      d=offset_dist)
-# # Add new offset long/lat to dat
-# dat$ROV_Longitude <- offsets[,1]
-# dat$ROV_Latitude <- offsets[,2]
-dat$ROV_Longitude <- dat$Beacon_Longitude
-dat$ROV_Latitude <- dat$Beacon_Latitude
 
 
 #===============================================================================

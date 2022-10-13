@@ -59,6 +59,8 @@ ASDL_dir <- file.path(wdir, project_folder, "ASDL")
 save_dir <- file.path(wdir, project_folder, "2.ASDL_Processed_Data")
 dir.create(save_dir, recursive = TRUE) # Will warn if already exists
 
+# Beacon ID number for ROV beacon? (not clump beacon)
+ROV_beacon <- 4
 
 # Should the ROV depth source be converted to meters?
 # Multiply by 3.28084
@@ -300,7 +302,10 @@ if( length(DVL_files) > 0 ){
 
 # Computes the coordinates of each beacon using the X, Y distance and bearing 
 # from the hydrophone specified in the TrackMan master file and converts these 
-# to new Lat/Long positions for the vehicle.
+# to new Lat/Long positions for the vehicle. No offsets are applied to ships 
+# position so calculations are from GPS. Trackman bearing is from center of ship
+# so these manually calculated ROV positions could be off if the distance between
+# the GPS and center of the ship is large.
 
 # Message
 message("\nCreating 'Manual_Beacon_Tracking_MasterLog.csv'", "\n")
@@ -315,6 +320,9 @@ if( !exists("GPS_all") ){
   GPS_all$Datetime <- ymd_hms(GPS_all$Datetime)
 }
 
+# Select only ROV beacon
+Track_all <- filter(Track_all, Beacon_ID == ROV_beacon)
+
 # Filter out TrackMan readings where no Distance or bad error codes
 TrackMan <- filter(Track_all, DistanceX_m != 0 &  DistanceY_m != 0 &
                      Error_Code == 0 | 
@@ -328,13 +336,10 @@ New_Tracking$Distance <- sqrt(New_Tracking$DistanceX_m^2 +
 New_Tracking <- New_Tracking[!is.na(New_Tracking$Latitude),]
 # Check
 hist(New_Tracking$Distance, breaks = 30)
-# Bearing
-# ! subtract 18 because of an error in configuring the heading in trackman !
-bearing <- New_Tracking$Target_Bearing - 18
-bearing[bearing < 0] <- bearing[bearing < 0] + 360
+
 # Generate new points with X,Y distance and bearing from existing Lat/Longs
 Beacon_Coords <- destPoint(p=New_Tracking[c("Longitude","Latitude")], 
-                           b=bearing, 
+                           b=New_Tracking$Target_Bearing, 
                            d=New_Tracking$Distance)
 # Slot the new Beacon tracking points back into New_Tracking DF
 New_Tracking$Beacon_Longitude <- Beacon_Coords[,1]
