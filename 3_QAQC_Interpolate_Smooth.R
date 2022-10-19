@@ -76,7 +76,7 @@
 
 
 # Notes 
-# need to add telemetry data
+# added telemetry data
 
 #===============================================================================
 # Packages and session options
@@ -150,21 +150,15 @@ flds <- c("Datetime","Dive_Name", "Transect_Name", "Dive_Phase",
           "ROV_Latitude_smoothed", "ROV_Longitude_unsmoothed", 
           "ROV_Latitude_unsmoothed", "ROV_Source", "Ship_Longitude", 
           "Ship_Latitude", "Depth_m", "Depth_Source", "ROV_heading", 
-          "Ship_heading", "Speed_kts", "Altitude_m", "Slant_range_m", 
-          "Rogue_pitch", "Rogue_roll", "MiniZeus_zoom_percent",
-          "MiniZeus_focus_percent", "MiniZeus_aperture_percent", 
-          "MiniZeus_pitch","MiniZeus_roll","ROV_pitch","ROV_roll",
-          "Conductivity_mS_cm", "Temperature_C", "Pressure_dbar", 
-          "DO_Sat_percent", "Sea_Pressure_dbar", "Salinity_PSU", 
-          "Sound_Speed_m_s", "Specific_Cond_uS_cm", "Density_kg_m3", 
-          "DO_conc_mgL")
+          "Ship_heading", "Speed_kts", "Altitude_m", "ROV_pitch","ROV_roll",
+          "CameraTilt", "Lights", "PilotGain")
 
 
 #===============================================================================
 # STEP 2 - START LOG FILE
 
 # Sink output to file
-rout <- file( file.path(wdir,project_folder,"Data","3.QAQC_Processing.log" ), 
+rout <- file( file.path(wdir,project_folder,"3.QAQC_Processing.log" ), 
               open="wt" )
 sink( rout, split = TRUE ) # display output on console and send to log file
 sink( rout, type = "message" ) # send warnings to log file
@@ -209,7 +203,7 @@ for(i in T_files){
   T_Data <- bind_rows(T_Data, tmp)
 }
 # Assign datetime field
-T_Data$Datetime <- ymd_hms(T_Data$Timestamp)
+T_Data$Datetime <- ymd_hms(sub("[.].*", "", T_Data$Timestamp))
 # Select fields
 T_Data <- T_Data[c("Datetime", "roll", "pitch", "heading", "altitudeRelative", 
                    "apmSubInfo.cameraTilt", "apmSubInfo.lights2", 
@@ -397,6 +391,7 @@ for (i in unique(dat$Dive_Name)){
          col = c("#009E73","#0072B2","#D55E00"), pch=16)
 }
 
+# ROV position
 # Fill gaps in Beacon long and lat with TrackMan manual ROV GPS
 if (trackman ){
   message( "Filling position with TrackMan manual ROV GPS:")
@@ -408,16 +403,30 @@ if (trackman ){
                   fillfields=c("Beacon_Longitude", "Beacon_Latitude", "ID") )
 }
 
+# Ship position
+# Check for relationship between tofill and forfilling
+tmp <- merge(dat, Hemisphere_Master, by="Datetime")
+if(nrow(tmp) > 0) plot(tmp$Ship_Longitude, tmp$Longitude)
+# Fill gaps in ship position
+message( "Filling ship position with Hemisphere_GPS_MasterLog.csv:")
+dat <- fillgaps(tofill=dat,
+                forfilling=Hemisphere_Master,
+                type = "pos",
+                sourcefields=c("Ship_Longitude", "Ship_Latitude"),
+                fillfields=c("Longitude", "Latitude") )
+
+
+
 #==============#
 #    HEADING   #
 #==============#
 # Check for relationship between tofill and forfilling
-tmp <- merge(dat, ROV_Heading_Depth_Master, by="Datetime")
+tmp <- merge(dat, T_Data, by="Datetime")
 if(nrow(tmp) > 0) plot(tmp$ROV_heading.x, tmp$ROV_heading.y)
 # Fill gaps in ROV heading with 'ROV_Heading_Depth_MasterLog.csv'
-message( "Filling ROV heading with 'ROV_Heading_Depth_MasterLog.csv':")
+message( "Filling ROV heading with telemetry logs:")
 dat <- fillgaps(tofill=dat,
-                forfilling=ROV_Heading_Depth_Master,
+                forfilling=T_Data,
                 sourcefields="ROV_heading",
                 fillfields="ROV_heading" )
 # Check for relationship between tofill and forfilling
@@ -435,45 +444,14 @@ dat <- fillgaps(tofill=dat,
 #     DEPTH    #
 #==============#
 # Check for relationship between tofill and forfilling
-tmp <- merge(dat, RBR_Data, by="Datetime")
+tmp <- merge(dat, T_Data, by="Datetime", all=T)
 if(nrow(tmp) > 0) plot(tmp$Depth_m.x, tmp$Depth_m.y)
 # Fill gaps in depth with 'ROV_Heading_Depth_MasterLog.csv'
-message( "Filling depth with RBR CTD data:")
+message( "Filling depth with telemetry logs:")
 dat <- fillgaps(tofill=dat,
-                forfilling=RBR_Data,
+                forfilling=T_Data,
                 sourcefields=c("Depth_m","Depth_Source"),
                 fillfields=c("Depth_m","ID"))
-# Check for relationship between tofill and forfilling
-tmp <- merge(dat, RBR_Master, by="Datetime")
-if(nrow(tmp) > 0) plot(tmp$Depth_m.x, tmp$Depth_m.y)
-# Fill gaps in depth with 'ROV_Heading_Depth_MasterLog.csv'
-message( "Filling depth with RBR CTD backup:")
-dat <- fillgaps(tofill=dat,
-                forfilling=RBR_Master,
-                sourcefields=c("Depth_m","Depth_Source"),
-                fillfields=c("Depth_m","ID"))
-# Check for relationship between tofill and forfilling
-tmp <- merge(dat, ROV_Heading_Depth_Master, by="Datetime")
-if(nrow(tmp) > 0) plot(tmp$Depth_m.x, tmp$Depth_m.y)
-# Fill remaining gaps in depth with 'ROV_Heading_Depth_MasterLog.csv'
-message( "Filling depth with 'ROV_Heading_Depth_MasterLog.csv':")
-dat <- fillgaps(tofill=dat,
-                forfilling=ROV_Heading_Depth_Master,
-                sourcefields=c("Depth_m","Depth_Source"),
-                fillfields=c("Depth_m","ID"))
-
-#==================#
-#    SLANT RANGE   #
-#==================#
-# Check for relationship between tofill and forfilling
-tmp <- merge(dat, Slant_Range_Master, by="Datetime")
-if(nrow(tmp) > 0) plot(tmp$Slant_range_m.x, tmp$Slant_range_m.y)
-# Fill gaps in slant range with 'Tritech_SlantRange_MasterLog.csv'
-message( "Filling slant range with Tritech backup:")
-dat <- fillgaps(tofill=dat,
-                forfilling=Slant_Range_Master,
-                sourcefields="Slant_range_m",
-                fillfields="Slant_range_m" )
 
 
 #===============#
@@ -507,27 +485,12 @@ dat <- fillgaps(tofill=dat,
 
 
 #===============================================================================
-# STEP 6 - ADD ASDL and RBR CTD DATA NOT IN HYPACK DATA 
+# STEP 6 - ADD TELEMETRY DATA NOT IN HYPACK DATA 
 
-# Merge MiniZeus fields
-dat <- left_join(dat, MiniZeus_ZFA_Master, by = "Datetime")
-dat <- left_join(dat, ROV_MiniZeus_IMUS_Master, by = "Datetime")
-dat <- left_join(dat, RBR_Data[!names(RBR_Data) %in% c("Depth_m","ID")], 
+# Merge telemetry fields
+dat <- left_join(dat, T_Data[!names(T_Data) %in% c("Depth_m","ROV_heading","ID")], 
                  by = "Datetime")
 
-# Use ASDL data to fill RBR CTD data gaps
-# Looks for gaps using the first field => Conductivity_mS_cm   
-message( "Filling RBR CTD gaps with ASDL RBR master backup:")
-dat <- fillgaps(tofill=dat,
-                forfilling=RBR_Master,
-                sourcefields=c("Conductivity_mS_cm", "Temperature_C",
-                               "Pressure_dbar", "DO_Sat_percent", 
-                               "Sea_Pressure_dbar", "Salinity_PSU", 
-                               "Sound_Speed_m_s", "Specific_Cond_uS_cm"),
-                fillfields=c("Conductivity_mS_cm", "Temperature_C",
-                             "Pressure_dbar", "DO_Sat_percent", 
-                             "Sea_Pressure_dbar", "Salinity_PSU", 
-                             "Sound_Speed_m_s", "Specific_Cond_uS_cm"))
 # Summary
 summary(dat)
 
@@ -562,8 +525,7 @@ interpGaps <- function( x, variable ){
 # Variables to interpolate
 # ROV heading, speed, rogue or minizeus camera variables not interpolated
 variables <- c("Beacon_Longitude", "Beacon_Latitude", "Ship_Longitude",
-               "Ship_Latitude", "Depth_m", "Ship_heading",
-               "Altitude_m", "Slant_range_m")
+               "Ship_Latitude", "Depth_m", "Ship_heading", "Altitude_m")
 
 # Interpolate within each dive or transect by variable
 for (v in variables){
@@ -577,7 +539,6 @@ print(summary(dat))
 # Set out of bound alitude and slant range to NA
 # > 20m for altitude and > 10m for slant range
 dat$Altitude_m[dat$Altitude_m > 20] <- NA
-dat$Slant_range_m[dat$Slant_range_m > 10] <- NA
 
 # Add "interp" label to beacon source
 dat$Beacon_Source[is.na(dat$Beacon_Source)] <- "Interpolation"
@@ -585,7 +546,8 @@ dat$Beacon_Source[is.na(dat$Beacon_Source)] <- "Interpolation"
 message("\nBeacon position sources:")
 print(table(dat$Beacon_Source))
 
-
+# Rename beacon to ROV
+names(dat) <- sub("Beacon_L","ROV_L", names(dat))
 
 
 #===============================================================================

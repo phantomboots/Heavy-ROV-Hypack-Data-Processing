@@ -53,19 +53,19 @@ lapply(packages, require, character.only = TRUE)
 wdir <- getwd() 
 
 # Project folder
-project_folder <- "Pac2021-054_phantom"
+project_folder <- "Anchorages_2022"
 
 # Name of Ship used in the survey
 ship_name <- "Manyberries"
 
 # Directories where final processed data are stored
-imports_dir <- file.path(wdir, project_folder, "Data/3.Final_Processed_Data")
-hypack_dir <- file.path(wdir, project_folder, "Data/1.Hypack_Processed_Data")
+imports_dir <- file.path(wdir, project_folder, "3.Final_Processed_Data")
+hypack_dir <- file.path(wdir, project_folder, "1.Hypack_Processed_Data")
 
 # Export directories 
-KML_path <- file.path(wdir, project_folder, "Data/4.Spatial_Data/KML")
+KML_path <- file.path(wdir, project_folder, "4.Spatial_Data/KML")
 dir.create(KML_path, recursive = TRUE) # Will warn if already exists
-SHP_path <- file.path(wdir, project_folder, "Data/4.Spatial_Data/Shapefiles")
+SHP_path <- file.path(wdir, project_folder, "4.Spatial_Data/Shapefiles")
 dir.create(SHP_path, recursive = TRUE) # Will warn if already exists
 
 

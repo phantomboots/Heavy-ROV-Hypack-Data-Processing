@@ -70,7 +70,7 @@ convert_depth <- FALSE
 # STEP 2 - START LOG FILE
 
 # Sink output to file
-rout <- file( file.path(wdir,project_folder,"Data","2.ASDL_Data_Parser.log" ), 
+rout <- file( file.path(wdir,project_folder,"2.ASDL_Data_Parser.log" ), 
               open="wt" )
 sink( rout, split = TRUE ) # display output on console and send to log file
 sink( rout, type = "message" ) # send warnings to log file

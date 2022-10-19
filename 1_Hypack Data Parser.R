@@ -115,7 +115,7 @@ depth_secondary <- NULL
 # STEP 3 - START LOG FILE
 
 # Sink output to file
-rout <- file( file.path(wdir,project_folder,"Data","1.Hypack_Data_Parser.log"), 
+rout <- file( file.path(wdir,project_folder,"1.Hypack_Data_Parser.log"), 
               open="wt" )
 sink( rout, split = TRUE ) # display output on console and send to log file
 sink( rout, type = "message" ) # send warnings to log file
@@ -618,14 +618,14 @@ dlog[tnames] <- lapply( dlog[tnames], FUN=function(x) ymd_hms(x) )
 dlog$Start_UTC_pad <- dlog$Start_UTC - minutes(padtime)
 dlog$End_UTC_pad <- dlog$End_UTC + minutes(padtime)
 # Crop padded times so there is no overlap between transects
-#for (i in 2:nrow(dlog)){
-#  if( dlog$End_UTC_pad[i-1] > dlog$Start_UTC_pad[i] ){
-#    # Replace end times with non-padded times
-#    dlog$End_UTC_pad[i-1] <- dlog$End_UTC[i-1]
-#    # Set start time to previous endtime 
-#    dlog$Start_UTC_pad[i] <- dlog$End_UTC[i-1]
-#  }
-#}
+for (i in 2:nrow(dlog)){
+ if( dlog$End_UTC_pad[i-1] > dlog$Start_UTC_pad[i] ){
+   # Replace end times with non-padded times
+   dlog$End_UTC_pad[i-1] <- dlog$End_UTC[i-1]
+   # Set start time to previous endtime
+   dlog$Start_UTC_pad[i] <- dlog$End_UTC[i-1]
+ }
+}
 # Generate by second sequence of datetimes from start to end of transects 
 slog <- NULL
 for(i in 1:nrow(dlog)){
@@ -683,8 +683,10 @@ cat(paste0(unique(dat$Dive_Name), collapse = "\n"), "\n")
 # Map each dive
 for (i in unique(dat$Dive_Name)){
   tmp <- dat[dat$Dive_Name == i,]
-  plot(tmp$Ship_Longitude,tmp$Ship_Latitude, asp=1, main=i, pch=16, cex=.5)
-  points(tmp$Beacon_Longitude,tmp$Beacon_Latitude, col="blue", pch=16, cex=.5)
+  if( !all(is.na(tmp$Ship_Longitude))){
+    plot(tmp$Ship_Longitude,tmp$Ship_Latitude, asp=1, main=i, pch=16, cex=.5)
+    points(tmp$Beacon_Longitude,tmp$Beacon_Latitude, col="blue", pch=16, cex=.5)
+  }
 }
 
 # Summary
